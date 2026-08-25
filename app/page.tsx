@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // Connect to the database
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function GridGuardians() {
   // These act like light switches to change what is on the screen
@@ -26,13 +25,21 @@ export default function GridGuardians() {
   const isPlayingRef = useRef(false);
   const timerId = useRef<NodeJS.Timeout | null>(null);
 
-  // --- THE MATH GAME LOGIC ---
-  const startGame = () => {
-    setCurrentScreen("game");
-    nextQuestion();
-  };
+  const saveScore = useCallback(async (n1: number, n2: number, correct: boolean, timeMs: number) => {
+    try {
+      if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        await supabase.from("answer_logs").insert([
+          { player_name: "Noah", question: `${n1} x ${n2}`, is_correct: correct, response_time_ms: timeMs }
+        ]);
+      }
+    } catch (err) {
+      console.warn("Unable to save score:", err);
+    }
+  }, []);
 
-  const nextQuestion = () => {
+  const nextQuestionRef = useRef<() => void>(() => {});
+
+  const nextQuestion = useCallback(() => {
     const n1 = Math.floor(Math.random() * 7) + 6;
     const n2 = Math.floor(Math.random() * 7) + 6;
     setNum1(n1);
@@ -50,24 +57,26 @@ export default function GridGuardians() {
       if (!isPlayingRef.current) return;
       timeLeftRef.current -= 0.1;
       setTimeLeft(timeLeftRef.current);
-      if (timeLeftRef.current <= 0) handleTimeOut(n1, n2);
+      if (timeLeftRef.current <= 0) {
+        if (timerId.current) clearInterval(timerId.current);
+        isPlayingRef.current = false;
+        setIsPlaying(false);
+        setTimeLeft(0);
+        setMessage(`Too slow! The answer was ${n1 * n2}`);
+        saveScore(n1, n2, false, 6000);
+        setTimeout(() => nextQuestionRef.current(), 2000);
+      }
     }, 100);
-  };
-  
-  const handleTimeOut = async (n1: number, n2: number) => {
-    if (timerId.current) clearInterval(timerId.current);
-    isPlayingRef.current = false;
-    setIsPlaying(false);
-    setTimeLeft(0);
-    setMessage(`Too slow! The answer was ${n1 * n2}`);
-    await saveScore(n1, n2, false, 6000);
-    setTimeout(nextQuestion, 2000);
-  };
-  
-  const saveScore = async (n1: number, n2: number, correct: boolean, timeMs: number) => {
-    await supabase.from("answer_logs").insert([
-      { player_name: "Noah", question: `${n1} x ${n2}`, is_correct: correct, response_time_ms: timeMs }
-    ]);
+  }, [saveScore]);
+
+  useEffect(() => {
+    nextQuestionRef.current = nextQuestion;
+  }, [nextQuestion]);
+
+  // --- THE MATH GAME LOGIC ---
+  const startGame = () => {
+    setCurrentScreen("game");
+    nextQuestion();
   };
   
   const checkAnswer = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,11 +89,11 @@ export default function GridGuardians() {
       isPlayingRef.current = false;
       setIsPlaying(false);
       setMessage("Correct! +10 Coins!");
-      setCoins(coins + 10); // Reward the player!
+      setCoins(prev => prev + 10); // Reward the player!
       
       const timeTaken = Math.round((6.0 - timeLeftRef.current) * 1000);
       saveScore(num1, num2, true, timeTaken);
-      setTimeout(nextQuestion, 1500);
+      setTimeout(() => nextQuestionRef.current(), 1500);
     }
   };
 
@@ -115,7 +124,7 @@ export default function GridGuardians() {
           </div>
 
           {/* Daily Quests */}
-          <h3 className="text-xl font-bold mb-4 text-indigo-900">Today's Quests</h3>
+          <h3 className="text-xl font-bold mb-4 text-indigo-900">Today&apos;s Quests</h3>
           <div className="grid gap-4 mb-8">
             <div className="bg-white p-5 rounded-xl shadow-sm border-l-8 border-green-400 flex justify-between items-center">
               <span className="font-bold text-lg">Log in today</span>
