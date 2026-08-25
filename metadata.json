@@ -1,6 +1,6 @@
 {
   "name": "Grid Guardians",
-  "description": "A gamified math game with student dashboard, boss mode, and score tracking.",
+  "description": "An interactive gamified mathematics platform aligned with the English National Curriculum from Nursery to Year 6, featuring Early Years Number Garden, UK Year 4 MTC simulator, Year 6 SATs Arena, RPG boss raids, and a comprehensive Teacher Hub.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
